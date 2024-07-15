@@ -1,6 +1,6 @@
 # Subdomains Enumeration
 
-## Summary
+:warning: Content of this page has been moved to [InternalAllTheThings/cloud/azure](https://github.com/swisskyrepo/InternalAllTheThings/)
 
 * [Enumerate all subdomains](#enumerate-all-subdomains-only-if-the-scope-is-domainext)
   * Subbrute
@@ -9,10 +9,12 @@
   * EyeWitness
   * Sublist3r
   * Subfinder
+  * Findomain
   * Aquatone (Ruby and Go versions)
   * AltDNS
   * MassDNS
   * Nmap
+  * Dnsdumpster
 * Subdomain take over
   * tko-subs
   * HostileSubBruteForcer
@@ -86,6 +88,17 @@ go get github.com/subfinder/subfinder
 ./Subfinder/subfinder -d example.com -o /tmp/results_subfinder.txt
 ```
 
+### Using Findomain
+
+```powershell
+$ wget https://github.com/Edu4rdSHL/findomain/releases/latest/download/findomain-linux
+$ chmod +x findomain-linux
+$ findomain_spyse_token="YourAccessToken"
+$ findomain_virustotal_token="YourAccessToken" 
+$ findomain_fb_token="YourAccessToken" 
+$ ./findomain-linux -t example.com -o
+```
+
 ### Using Aquatone - old version (Ruby)
 
 ```powershell
@@ -151,6 +164,13 @@ cat /tmp/results_subfinder.txt | massdns -r $DNS_RESOLVERS -t A -o S -w /tmp/res
 nmap -sn --script hostmap-crtsh host_to_scan.tld
 ```
 
+### Using dnsdumpster
+
+```ps1
+git clone https://github.com/nmmapper/dnsdumpster
+python dnsdumpster.py -d domainname.com
+```
+
 ## Subdomain take over
 
 Check [Can I take over xyz](https://github.com/EdOverflow/can-i-take-over-xyz) by EdOverflow for a list of services and how to claim (sub)domains with dangling DNS records.
@@ -166,7 +186,7 @@ go get github.com/anshumanbh/tko-subs
 
 ```bash
 git clone https://github.com/nahamsec/HostileSubBruteforcer
-chmox +x sub_brute.rb
+chmod +x sub_brute.rb
 ./sub_brute.rb
 ```
 
